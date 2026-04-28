@@ -7,7 +7,8 @@ import Link from 'next/link';
 import AuthModal from './components/AuthModal';
 import CameraCapture from './components/CameraCapture';
 import AdminGalleryUpload from './components/AdminGalleryUpload';
-import { LogOut, Sparkles, Users, Trash2, X } from 'lucide-react';
+import { LogOut, Sparkles, Users, Trash2, X, TrendingUp } from 'lucide-react';
+import { usePageTracking } from './hooks/usePageTracking';
 
 interface ImageType {
   id: string;
@@ -58,6 +59,8 @@ export default function Home() {
       fetchImages();
     }
   }, [userId, viewAll]);
+
+  usePageTracking(userId, userName, userRole);
 
   const fetchImages = async () => {
     if (!userId) return;
@@ -290,6 +293,15 @@ export default function Home() {
       </main>
 
       {/* Floating Buttons */}
+      {userRole === 'admin' && (
+      <Link
+        href="/admin/metrics"
+        className="w-14 h-14 bg-gradient-to-r from-purple-600 to-purple-800 rounded-full shadow-lg flex items-center justify-center hover:scale-110 transition-transform"
+        title="Analytics Dashboard"
+      >
+        <TrendingUp className="w-6 h-6 text-white" />
+      </Link>
+    )}
       <div className="fixed bottom-8 right-8 flex flex-col gap-4">
         {/* Camera Button - ALL users */}
         <CameraCapture userId={userId} onUploadSuccess={handleUploadSuccess} />
