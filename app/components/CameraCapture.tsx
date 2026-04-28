@@ -140,7 +140,7 @@ export default function CameraCapture({ userId, onUploadSuccess }: CameraCapture
     }
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  /*const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -179,7 +179,7 @@ export default function CameraCapture({ userId, onUploadSuccess }: CameraCapture
       setUploading(false);
       e.target.value = '';
     }
-  };
+  };*/
 
   const openCamera = () => {
     setShowCamera(true);
@@ -207,19 +207,19 @@ export default function CameraCapture({ userId, onUploadSuccess }: CameraCapture
       </button>
 
       {/* Hidden file input for gallery upload */}
-      <input
+      {/*<input
         ref={fileInputRef}
         type="file"
         accept="image/*"
         onChange={handleFileUpload}
         className="hidden"
-      />
+      />*/}
 
       {/* Camera Modal */}
-      {showCamera && (
+      {/*{showCamera && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-2xl w-full relative overflow-hidden">
-            {/* Header */}
+            {/* Header *
             <div className="flex justify-between items-center p-4 border-b border-gray-200">
               <h3 className="text-xl font-bold text-[#044536]">
                 {capturedPhoto ? 'Preview Photo' : 'Take a Photo'}
@@ -232,7 +232,7 @@ export default function CameraCapture({ userId, onUploadSuccess }: CameraCapture
               </button>
             </div>
 
-            {/* Camera/Preview Area */}
+            {/* Camera/Preview Area *
             <div className="relative bg-black aspect-video">
               {!capturedPhoto ? (
                 <>
@@ -244,7 +244,7 @@ export default function CameraCapture({ userId, onUploadSuccess }: CameraCapture
                     style={{ transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' }}
                   />
                   
-                  {/* Camera Controls Overlay */}
+                  {/* Camera Controls Overlay *
                   <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-6">
                     <button
                       onClick={switchCamera}
@@ -274,7 +274,7 @@ export default function CameraCapture({ userId, onUploadSuccess }: CameraCapture
                     className="w-full h-full object-contain bg-black"
                   />
                   
-                  {/* Preview Controls */}
+                  {/* Preview Controls *
                   <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-4">
                     <button
                       onClick={retakePhoto}
@@ -306,18 +306,127 @@ export default function CameraCapture({ userId, onUploadSuccess }: CameraCapture
               )}
             </div>
 
-            {/* Error Message */}
+            {/* Error Message *
             {error && (
               <div className="p-4 bg-red-50 border-t border-red-200">
                 <p className="text-red-600 text-sm text-center">{error}</p>
               </div>
             )}
 
-            {/* Hidden Canvas */}
+            {/* Hidden Canvas *
             <canvas ref={canvasRef} className="hidden" />
           </div>
         </div>
+      )}*/}
+
+      {showCamera && (
+  <div className="fixed inset-0 bg-black z-50 flex flex-col">
+
+    {/* TOP BAR */}
+    <div className="absolute top-0 left-0 right-0 z-20 flex justify-between items-center p-4 bg-gradient-to-b from-black/70 to-transparent">
+      <h3 className="text-white font-semibold text-lg">
+        {capturedPhoto ? 'Preview' : 'Camera'}
+      </h3>
+
+      <button onClick={closeCamera} className="text-white">
+        <X size={28} />
+      </button>
+    </div>
+
+    {/* CAMERA / PREVIEW */}
+    <div className="flex-1 relative flex items-center justify-center bg-black">
+
+      {!capturedPhoto ? (
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          className="w-full h-full object-cover"
+          style={{
+            transform: facingMode === 'user' ? 'scaleX(-1)' : 'none',
+          }}
+        />
+      ) : (
+        <img
+          src={capturedPhoto}
+          alt="Preview"
+          className="w-full h-full object-contain bg-black"
+        />
       )}
+
+      {/* ERROR */}
+      {error && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-30">
+          <p className="text-red-400 text-center px-6">{error}</p>
+        </div>
+      )}
+    </div>
+
+    {/* BOTTOM CONTROLS */}
+    <div className="absolute bottom-0 left-0 right-0 z-20 pb-8 pt-6 bg-gradient-to-t from-black/80 to-transparent">
+
+      {!capturedPhoto ? (
+        <div className="flex items-center justify-between px-8">
+
+          {/* GALLERY */}
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="w-14 h-14 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center"
+          >
+            <Upload className="text-white" />
+          </button>
+
+          {/* CAPTURE */}
+          <button
+            onClick={capturePhoto}
+            className="relative"
+          >
+            <div className="w-20 h-20 rounded-full border-4 border-white flex items-center justify-center">
+              <div className="w-14 h-14 bg-white rounded-full active:scale-90 transition" />
+            </div>
+          </button>
+
+          {/* SWITCH CAMERA */}
+          <button
+            onClick={switchCamera}
+            className="w-14 h-14 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center"
+          >
+            <RefreshCw className="text-white" />
+          </button>
+        </div>
+      ) : (
+        <div className="flex gap-4 px-6">
+
+          <button
+            onClick={retakePhoto}
+            disabled={uploading}
+            className="flex-1 py-3 bg-gray-600 text-white rounded-xl font-semibold"
+          >
+            Retake
+          </button>
+
+          <button
+            onClick={uploadPhoto}
+            disabled={uploading}
+            className="flex-1 py-3 bg-[#1f8d6f] text-white rounded-xl font-semibold flex items-center justify-center gap-2"
+          >
+            {uploading ? (
+              <>
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                Uploading
+              </>
+            ) : (
+              <>
+                <Upload size={18} />
+                Upload
+              </>
+            )}
+          </button>
+        </div>
+      )}
+    </div>
+  </div>
+)}
     </>
   );
 }
