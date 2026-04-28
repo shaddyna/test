@@ -456,7 +456,7 @@ export default function AuthModal({ isOpen, onClose, mode, onSuccess }: AuthModa
             }}
             className="text-[#1f8d6f] font-semibold hover:underline"
           >
-            {mode === 'login' ? 'Create one' : 'Login'}
+            {mode === 'login' ? 'Click X to Create' : 'Click X to Login'}
           </button>
         </p>
       </div>
