@@ -1,86 +1,117 @@
-// app/components/CameraCapture.tsx
-'use client';
+"use client";
 
-import { useState, useRef } from 'react';
-import { Camera, X } from 'lucide-react';
+import { Camera, RefreshCw, X, Check } from "lucide-react";
+import { useRef, useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 
-interface CameraCaptureProps {
+interface ImageUploadProps {
   userId: string;
   onUploadSuccess: () => void;
 }
 
-export default function CameraCapture({ userId, onUploadSuccess }: CameraCaptureProps) {
-  const [showCamera, setShowCamera] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState('');
+export default function ImageUpload({ userId, onUploadSuccess }: ImageUploadProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [stream, setStream] = useState<MediaStream | null>(null);
 
+  const [stream, setStream] = useState<MediaStream | null>(null);
+  const [showCamera, setShowCamera] = useState(false);
+  const [isReady, setIsReady] = useState(false);
+
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
+
+  // START CAMERA
   const startCamera = async () => {
     try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true });
+      const mediaStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode }
+      });
+
       setStream(mediaStream);
+      setShowCamera(true);
+
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
       }
-      setShowCamera(true);
-      setError('');
+
     } catch (err) {
-      setError('Unable to access camera. Please check permissions.');
+      alert("Camera not available");
     }
   };
 
-  const capturePhoto = () => {
-    if (videoRef.current && canvasRef.current) {
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const context = canvas.getContext('2d');
-      if (context) {
-        context.drawImage(video, 0, 0, canvas.width, canvas.height);
-        canvas.toBlob(async (blob) => {
-          if (blob) {
-            const file = new File([blob], `photo-${Date.now()}.jpg`, { type: 'image/jpeg' });
-            await uploadImage(file);
-            stopCamera();
-          }
-        }, 'image/jpeg', 0.8);
-      }
-    }
-  };
-
+  // STOP CAMERA
   const stopCamera = () => {
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop());
-      setStream(null);
-    }
+    stream?.getTracks().forEach(t => t.stop());
+    setStream(null);
     setShowCamera(false);
+    setCapturedImage(null);
+    setIsReady(false);
   };
 
-  const uploadImage = async (file: File) => {
-    setUploading(true);
-    setError('');
+  // CAPTURE IMAGE (instant preview)
+  const capture = () => {
+    if (!videoRef.current || !canvasRef.current) return;
 
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('userId', userId);
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    ctx.drawImage(video, 0, 0);
+
+    const image = canvas.toDataURL("image/jpeg", 0.9);
+    setCapturedImage(image);
+  };
+
+  // RETAKE
+  const retake = () => setCapturedImage(null);
+
+  // UPLOAD
+  const upload = async () => {
+    if (!capturedImage) return;
+
+    setUploading(true);
 
     try {
-      const response = await fetch('/api/images/upload', {
-        method: 'POST',
-        body: formData,
+      const res = await fetch(capturedImage);
+      const blob = await res.blob();
+
+      const file = new File([blob], `photo.jpg`, { type: "image/jpeg" });
+
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append(
+        "upload_preset",
+        process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET!
+      );
+
+      const uploadRes = await fetch(
+        `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`,
+        { method: "POST", body: formData }
+      );
+
+      const data = await uploadRes.json();
+
+      await fetch("/api/images/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imageUrl: data.secure_url,
+          userId,
+          publicId: data.public_id
+        })
       });
 
-      const data = await response.json();
-
-      if (!response.ok) throw new Error(data.error);
-
+      stopCamera();
       onUploadSuccess();
-      setShowCamera(false);
-    } catch (err: any) {
-      setError(err.message);
+
+    } catch (err) {
+      alert("Upload failed");
     } finally {
       setUploading(false);
     }
@@ -88,59 +119,83 @@ export default function CameraCapture({ userId, onUploadSuccess }: CameraCapture
 
   return (
     <>
-      {/* Floating Camera Button */}
+      {/* OPEN CAMERA BUTTON */}
       <button
         onClick={startCamera}
-        className="w-14 h-14 bg-gradient-to-r from-[#1f8d6f] to-[#0f6d54] rounded-full shadow-lg flex items-center justify-center hover:scale-110 transition-transform"
-        title="Take Photo"
+        className="w-12 h-12 rounded-full bg-green-600 flex items-center justify-center shadow-lg hover:scale-105 transition"
       >
-        <Camera className="w-6 h-6 text-white" />
+        <Camera className="text-white" />
       </button>
 
-      {/* Camera Modal */}
-      {showCamera && (
-        <div className="fixed inset-0 bg-black/95 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-2xl w-full p-4 relative">
-            <button
-              onClick={stopCamera}
-              className="absolute -top-12 right-0 text-white hover:text-gray-300 transition-colors"
-            >
-              <X size={32} />
-            </button>
+      {/* MODAL */}
+      <AnimatePresence>
+        {showCamera && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black z-50 flex flex-col"
+          >
+            {/* TOP BAR */}
+            <div className="flex justify-between p-4 text-white">
+              <button onClick={stopCamera}><X /></button>
+              <p>Camera</p>
+              <div />
+            </div>
 
-            <div className="relative">
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                className="w-full rounded-lg"
-                style={{ transform: 'scaleX(-1)' }}
-              />
+            {/* CAMERA / PREVIEW */}
+            <div className="flex-1 flex items-center justify-center relative">
+
+              {!capturedImage ? (
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <motion.img
+                  initial={{ scale: 0.9 }}
+                  animate={{ scale: 1 }}
+                  src={capturedImage}
+                  className="w-full h-full object-cover"
+                />
+              )}
+
               <canvas ref={canvasRef} className="hidden" />
-              
-              <div className="flex justify-center gap-4 mt-4">
+            </div>
+
+            {/* CONTROLS */}
+            <div className="p-6 flex justify-center gap-8 items-center bg-black">
+
+              {!capturedImage ? (
                 <button
-                  onClick={capturePhoto}
-                  disabled={uploading}
-                  className="px-6 py-3 bg-gradient-to-r from-[#1f8d6f] to-[#0f6d54] text-white rounded-lg font-semibold hover:shadow-lg transition-all disabled:opacity-50"
-                >
-                  {uploading ? 'Uploading...' : 'Capture Photo'}
-                </button>
-                <button
-                  onClick={stopCamera}
-                  className="px-6 py-3 bg-gray-500 text-white rounded-lg font-semibold hover:bg-gray-600 transition-all"
-                >
-                  Cancel
-                </button>
-              </div>
-              
-              {error && (
-                <div className="text-red-500 text-sm text-center mt-4">{error}</div>
+                  onClick={capture}
+                  className="w-20 h-20 rounded-full border-4 border-white bg-white"
+                />
+              ) : (
+                <>
+                  <button
+                    onClick={retake}
+                    className="text-white text-sm"
+                  >
+                    Retake
+                  </button>
+
+                  <button
+                    onClick={upload}
+                    disabled={uploading}
+                    className="bg-green-500 px-6 py-2 rounded-full text-white flex items-center gap-2"
+                  >
+                    {uploading ? "Uploading..." : "Send"}
+                    <Check size={16} />
+                  </button>
+                </>
               )}
             </div>
-          </div>
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 }
