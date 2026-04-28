@@ -1,201 +1,314 @@
-"use client";
+// app/components/CameraCapture.tsx
+'use client';
 
-import { Camera, RefreshCw, X, Check } from "lucide-react";
-import { useRef, useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useRef, useEffect } from 'react';
+import { Camera, X, RefreshCw, Check, AlertCircle, FlipHorizontalIcon,  } from 'lucide-react';
 
-interface ImageUploadProps {
+interface CameraCaptureProps {
   userId: string;
   onUploadSuccess: () => void;
 }
 
-export default function ImageUpload({ userId, onUploadSuccess }: ImageUploadProps) {
+export default function CameraCapture({ userId, onUploadSuccess }: CameraCaptureProps) {
+  const [showCamera, setShowCamera] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState('');
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(false);
+  
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-
   const [stream, setStream] = useState<MediaStream | null>(null);
-  const [showCamera, setShowCamera] = useState(false);
-  const [isReady, setIsReady] = useState(false);
 
-  const [capturedImage, setCapturedImage] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
-
-  // START CAMERA
   const startCamera = async () => {
+    setIsInitializing(true);
+    setError('');
+    
     try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode }
-      });
-
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+      
+      const constraints = {
+        video: {
+          facingMode: { exact: facingMode }
+        }
+      };
+      
+      const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
       setStream(mediaStream);
-      setShowCamera(true);
-
+      
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
+        videoRef.current.onloadedmetadata = () => {
+          videoRef.current?.play();
+          setIsInitializing(false);
+        };
       }
-
+      
+      setShowCamera(true);
+      setCapturedImage(null);
+      setShowPreview(false);
     } catch (err) {
-      alert("Camera not available");
+      // Fallback if exact facing mode fails
+      try {
+        const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        setStream(fallbackStream);
+        if (videoRef.current) {
+          videoRef.current.srcObject = fallbackStream;
+          videoRef.current.onloadedmetadata = () => {
+            videoRef.current?.play();
+            setIsInitializing(false);
+          };
+        }
+        setShowCamera(true);
+      } catch (fallbackErr) {
+        setError('Unable to access camera. Please check permissions.');
+        setIsInitializing(false);
+      }
     }
   };
 
-  // STOP CAMERA
-  const stopCamera = () => {
-    stream?.getTracks().forEach(t => t.stop());
-    setStream(null);
-    setShowCamera(false);
+  const switchCamera = async () => {
+    const newFacingMode = facingMode === 'user' ? 'environment' : 'user';
+    setFacingMode(newFacingMode);
+    
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+      await startCamera();
+    }
+  };
+
+  const capturePhoto = () => {
+    if (videoRef.current && canvasRef.current) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      
+      // Set canvas dimensions to match video
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      
+      const context = canvas.getContext('2d');
+      if (context) {
+        // Apply mirror effect for front camera preview
+        if (facingMode === 'user') {
+          context.translate(canvas.width, 0);
+          context.scale(-1, 1);
+        }
+        
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        
+        // Reset transform
+        if (facingMode === 'user') {
+          context.setTransform(1, 0, 0, 1, 0, 0);
+        }
+        
+        // Get image data
+        const imageData = canvas.toDataURL('image/jpeg', 0.9);
+        setCapturedImage(imageData);
+        setShowPreview(true);
+      }
+    }
+  };
+
+  const retakePhoto = () => {
     setCapturedImage(null);
-    setIsReady(false);
+    setShowPreview(false);
   };
 
-  // CAPTURE IMAGE (instant preview)
-  const capture = () => {
-    if (!videoRef.current || !canvasRef.current) return;
-
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    ctx.drawImage(video, 0, 0);
-
-    const image = canvas.toDataURL("image/jpeg", 0.9);
-    setCapturedImage(image);
-  };
-
-  // RETAKE
-  const retake = () => setCapturedImage(null);
-
-  // UPLOAD
-  const upload = async () => {
+  const uploadPhoto = async () => {
     if (!capturedImage) return;
-
+    
     setUploading(true);
-
+    setError('');
+    
+    // Convert base64 to file
+    const blob = await (await fetch(capturedImage)).blob();
+    const file = new File([blob], `photo-${Date.now()}.jpg`, { type: 'image/jpeg' });
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('userId', userId);
+    
     try {
-      const res = await fetch(capturedImage);
-      const blob = await res.blob();
-
-      const file = new File([blob], `photo.jpg`, { type: "image/jpeg" });
-
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append(
-        "upload_preset",
-        process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET!
-      );
-
-      const uploadRes = await fetch(
-        `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`,
-        { method: "POST", body: formData }
-      );
-
-      const data = await uploadRes.json();
-
-      await fetch("/api/images/upload", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          imageUrl: data.secure_url,
-          userId,
-          publicId: data.public_id
-        })
+      const response = await fetch('/api/images/upload', {
+        method: 'POST',
+        body: formData,
       });
-
-      stopCamera();
+      
+      const data = await response.json();
+      
+      if (!response.ok) throw new Error(data.error);
+      
       onUploadSuccess();
-
-    } catch (err) {
-      alert("Upload failed");
+      closeCamera();
+    } catch (err: any) {
+      setError(err.message);
     } finally {
       setUploading(false);
     }
   };
+  
+  const closeCamera = () => {
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+      setStream(null);
+    }
+    setShowCamera(false);
+    setShowPreview(false);
+    setCapturedImage(null);
+    setError('');
+    setIsInitializing(false);
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [stream]);
 
   return (
     <>
-      {/* OPEN CAMERA BUTTON */}
+      {/* Floating Camera Button */}
       <button
         onClick={startCamera}
-        className="w-12 h-12 rounded-full bg-green-600 flex items-center justify-center shadow-lg hover:scale-105 transition"
+        className="w-14 h-14 bg-gradient-to-r from-[#1f8d6f] to-[#0f6d54] rounded-full shadow-lg flex items-center justify-center hover:scale-110 transition-transform duration-200 active:scale-95"
+        title="Take Photo"
       >
-        <Camera className="text-white" />
+        <Camera className="w-6 h-6 text-white" />
       </button>
 
-      {/* MODAL */}
-      <AnimatePresence>
-        {showCamera && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black z-50 flex flex-col"
-          >
-            {/* TOP BAR */}
-            <div className="flex justify-between p-4 text-white">
-              <button onClick={stopCamera}><X /></button>
-              <p>Camera</p>
-              <div />
-            </div>
+      {/* Camera Modal */}
+      {showCamera && (
+        <div className="fixed inset-0 bg-black z-50 flex flex-col animate-in fade-in duration-300">
+          {/* Header */}
+          <div className="flex justify-between items-center p-4 bg-black/50 backdrop-blur-md">
+            <button
+              onClick={closeCamera}
+              className="text-white hover:text-gray-300 transition-colors"
+            >
+              <X size={28} />
+            </button>
+            <h3 className="text-white font-semibold">
+              {showPreview ? 'Preview' : 'Take Photo'}
+            </h3>
+            <div className="w-8" />
+          </div>
 
-            {/* CAMERA / PREVIEW */}
-            <div className="flex-1 flex items-center justify-center relative">
-
-              {!capturedImage ? (
+          {/* Camera/Preview Content */}
+          <div className="flex-1 flex items-center justify-center relative">
+            {!showPreview ? (
+              <>
                 <video
                   ref={videoRef}
                   autoPlay
                   playsInline
                   className="w-full h-full object-cover"
+                  style={{ transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' }}
                 />
-              ) : (
-                <motion.img
-                  initial={{ scale: 0.9 }}
-                  animate={{ scale: 1 }}
-                  src={capturedImage}
-                  className="w-full h-full object-cover"
+                
+                {/* Initializing Overlay */}
+                {isInitializing && (
+                  <div className="absolute inset-0 bg-black flex items-center justify-center">
+                    <div className="text-center">
+                      <div className="w-12 h-12 border-4 border-[#1f8d6f] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                      <p className="text-white">Initializing camera...</p>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Error Overlay */}
+                {error && (
+                  <div className="absolute inset-0 bg-black/90 flex items-center justify-center p-4">
+                    <div className="text-center">
+                      <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+                      <p className="text-white mb-4">{error}</p>
+                      <button
+                        onClick={startCamera}
+                        className="px-6 py-2 bg-[#1f8d6f] text-white rounded-lg"
+                      >
+                        Try Again
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="relative w-full h-full">
+                <img
+                  src={capturedImage!}
+                  alt="Preview"
+                  className="w-full h-full object-contain bg-black"
                 />
-              )}
+              </div>
+            )}
+          </div>
 
-              <canvas ref={canvasRef} className="hidden" />
-            </div>
-
-            {/* CONTROLS */}
-            <div className="p-6 flex justify-center gap-8 items-center bg-black">
-
-              {!capturedImage ? (
+          {/* Controls */}
+          {!showPreview ? (
+            <div className="bg-black/50 backdrop-blur-md p-6">
+              <div className="flex justify-center items-center gap-8">
                 <button
-                  onClick={capture}
-                  className="w-20 h-20 rounded-full border-4 border-white bg-white"
-                />
-              ) : (
-                <>
-                  <button
-                    onClick={retake}
-                    className="text-white text-sm"
-                  >
-                    Retake
-                  </button>
-
-                  <button
-                    onClick={upload}
-                    disabled={uploading}
-                    className="bg-green-500 px-6 py-2 rounded-full text-white flex items-center gap-2"
-                  >
-                    {uploading ? "Uploading..." : "Send"}
-                    <Check size={16} />
-                  </button>
-                </>
+                  onClick={switchCamera}
+                  className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-all active:scale-95"
+                  disabled={isInitializing}
+                >
+                  <FlipHorizontalIcon className="w-6 h-6 text-white" />
+                </button>
+                
+                <button
+                  onClick={capturePhoto}
+                  disabled={isInitializing}
+                  className="relative group"
+                >
+                  <div className="w-20 h-20 rounded-full border-4 border-white bg-white/10 hover:bg-white/20 transition-all active:scale-95">
+                    <div className="absolute inset-2 rounded-full bg-white group-active:scale-95 transition-transform" />
+                  </div>
+                </button>
+                
+                <div className="w-12" />
+              </div>
+            </div>
+          ) : (
+            <div className="bg-black/50 backdrop-blur-md p-6">
+              <div className="flex justify-center gap-6">
+                <button
+                  onClick={retakePhoto}
+                  className="flex-1 px-6 py-3 bg-gray-600 text-white rounded-xl font-semibold hover:bg-gray-700 transition-all active:scale-95 flex items-center justify-center gap-2"
+                >
+                  <RefreshCw size={20} />
+                  Retake
+                </button>
+                <button
+                  onClick={uploadPhoto}
+                  disabled={uploading}
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-[#1f8d6f] to-[#0f6d54] text-white rounded-xl font-semibold hover:shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {uploading ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <Check size={20} />
+                      Upload
+                    </>
+                  )}
+                </button>
+              </div>
+              {error && (
+                <p className="text-red-400 text-sm text-center mt-3">{error}</p>
               )}
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </div>
+      )}
     </>
   );
 }
