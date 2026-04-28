@@ -216,10 +216,10 @@ export default function CameraCapture({ userId, onUploadSuccess }: CameraCapture
       />*/}
 
       {/* Camera Modal */}
-      {/*{showCamera && (
+      {showCamera && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-2xl w-full relative overflow-hidden">
-            {/* Header *
+            {/* Header */}
             <div className="flex justify-between items-center p-4 border-b border-gray-200">
               <h3 className="text-xl font-bold text-[#044536]">
                 {capturedPhoto ? 'Preview Photo' : 'Take a Photo'}
@@ -232,7 +232,7 @@ export default function CameraCapture({ userId, onUploadSuccess }: CameraCapture
               </button>
             </div>
 
-            {/* Camera/Preview Area *
+            {/* Camera/Preview Area */}
             <div className="relative bg-black aspect-video">
               {!capturedPhoto ? (
                 <>
@@ -244,7 +244,7 @@ export default function CameraCapture({ userId, onUploadSuccess }: CameraCapture
                     style={{ transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' }}
                   />
                   
-                  {/* Camera Controls Overlay *
+                  {/* Camera Controls Overlay */}
                   <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-6">
                     <button
                       onClick={switchCamera}
@@ -274,7 +274,7 @@ export default function CameraCapture({ userId, onUploadSuccess }: CameraCapture
                     className="w-full h-full object-contain bg-black"
                   />
                   
-                  {/* Preview Controls *
+                  {/* Preview Controls */}
                   <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-4">
                     <button
                       onClick={retakePhoto}
@@ -306,23 +306,23 @@ export default function CameraCapture({ userId, onUploadSuccess }: CameraCapture
               )}
             </div>
 
-            {/* Error Message *
+            {/* Error Message */}
             {error && (
               <div className="p-4 bg-red-50 border-t border-red-200">
                 <p className="text-red-600 text-sm text-center">{error}</p>
               </div>
             )}
 
-            {/* Hidden Canvas *
+            {/* Hidden Canvas */}
             <canvas ref={canvasRef} className="hidden" />
           </div>
         </div>
-      )}*/}
+      )}
 
-      {showCamera && (
+{/*   {showCamera && (
   <div className="fixed inset-0 bg-black z-50 flex flex-col">
 
-    {/* TOP BAR */}
+    {/* TOP BAR *
     <div className="absolute top-0 left-0 right-0 z-20 flex justify-between items-center p-4 bg-gradient-to-b from-black/70 to-transparent">
       <h3 className="text-white font-semibold text-lg">
         {capturedPhoto ? 'Preview' : 'Camera'}
@@ -333,7 +333,7 @@ export default function CameraCapture({ userId, onUploadSuccess }: CameraCapture
       </button>
     </div>
 
-    {/* CAMERA / PREVIEW */}
+    {/* CAMERA / PREVIEW *
     <div className="flex-1 relative flex items-center justify-center bg-black">
 
       {!capturedPhoto ? (
@@ -354,7 +354,7 @@ export default function CameraCapture({ userId, onUploadSuccess }: CameraCapture
         />
       )}
 
-      {/* ERROR */}
+      {/* ERROR *
       {error && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-30">
           <p className="text-red-400 text-center px-6">{error}</p>
@@ -362,13 +362,13 @@ export default function CameraCapture({ userId, onUploadSuccess }: CameraCapture
       )}
     </div>
 
-    {/* BOTTOM CONTROLS */}
+    {/* BOTTOM CONTROLS *
     <div className="absolute bottom-0 left-0 right-0 z-20 pb-8 pt-6 bg-gradient-to-t from-black/80 to-transparent">
 
       {!capturedPhoto ? (
         <div className="flex items-center justify-between px-8">
 
-          {/* GALLERY */}
+          {/* GALLERY *
           <button
             onClick={() => fileInputRef.current?.click()}
             className="w-14 h-14 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center"
@@ -376,7 +376,7 @@ export default function CameraCapture({ userId, onUploadSuccess }: CameraCapture
             <Upload className="text-white" />
           </button>
 
-          {/* CAPTURE */}
+          {/* CAPTURE *
           <button
             onClick={capturePhoto}
             className="relative"
@@ -386,7 +386,7 @@ export default function CameraCapture({ userId, onUploadSuccess }: CameraCapture
             </div>
           </button>
 
-          {/* SWITCH CAMERA */}
+          {/* SWITCH CAMERA *
           <button
             onClick={switchCamera}
             className="w-14 h-14 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center"
@@ -426,7 +426,7 @@ export default function CameraCapture({ userId, onUploadSuccess }: CameraCapture
       )}
     </div>
   </div>
-)}
+)}*/}
     </>
   );
 }
