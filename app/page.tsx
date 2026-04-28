@@ -1081,7 +1081,7 @@ export default function Home() {
           </div>
         ) : images.length === 0 ? (
           <div className="text-center py-20 bg-white rounded-xl">
-            <CameraCapture userId={userId} onUploadSuccess={handleUploadSuccess} userRole={''} />
+            <CameraCapture userId={userId} onUploadSuccess={handleUploadSuccess}  />
             <h3 className="text-2xl font-semibold text-[#044536] mt-4 mb-2">No photos yet</h3>
             <p className="text-[#4e7c6f]">
               {viewAll ? "No photos have been uploaded yet!" : "Click the camera button to take your first photo!"}
@@ -1142,7 +1142,7 @@ export default function Home() {
       {/* Floating Buttons */}
       <div className="fixed bottom-8 right-8 flex flex-col gap-4">
         {/* Camera Button - ALL users */}
-        <CameraCapture userId={userId} onUploadSuccess={handleUploadSuccess} userRole={''} />
+        <CameraCapture userId={userId} onUploadSuccess={handleUploadSuccess} />
 
         {/* Users Button - ALL users */}
         <Link
