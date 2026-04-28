@@ -855,8 +855,9 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import AuthModal from './components/AuthModal';
-import ImageUpload from './components/ImageUpload';
-import { Camera, LogOut, Sparkles, Users, Trash2, X, Plus } from 'lucide-react';
+import CameraCapture from './components/CameraCapture';
+import AdminGalleryUpload from './components/AdminGalleryUpload';
+import { LogOut, Sparkles, Users, Trash2, X } from 'lucide-react';
 
 interface ImageType {
   id: string;
@@ -879,7 +880,6 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [viewAll, setViewAll] = useState(true);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
-  const [showCameraUpload, setShowCameraUpload] = useState(false);
 
   useEffect(() => {
     const savedUserId = localStorage.getItem('userId');
@@ -893,6 +893,14 @@ export default function Home() {
     } else {
       setShowAuth(true);
     }
+
+    // Listen for auth mode switching
+    const handleSwitchMode = (event: CustomEvent) => {
+      setAuthMode(event.detail);
+      setShowAuth(true);
+    };
+    window.addEventListener('switchAuthMode', handleSwitchMode as EventListener);
+    return () => window.removeEventListener('switchAuthMode', handleSwitchMode as EventListener);
   }, []);
 
   useEffect(() => {
@@ -938,7 +946,6 @@ export default function Home() {
   };
 
   const handleUploadSuccess = () => {
-    setShowCameraUpload(false);
     fetchImages();
   };
 
@@ -1031,6 +1038,7 @@ export default function Home() {
               <button
                 onClick={handleLogout}
                 className="p-2 hover:bg-[#cfe0db] rounded-lg transition-colors"
+                title="Logout"
               >
                 <LogOut className="w-5 h-5 text-[#4e7c6f]" />
               </button>
@@ -1062,7 +1070,7 @@ export default function Home() {
                 : 'bg-white text-[#4e7c6f] hover:shadow-md'
             }`}
           >
-            <Camera size={18} />
+            <LogOut size={18} className="rotate-90" />
             My Photos
           </button>
         </div>
@@ -1073,10 +1081,10 @@ export default function Home() {
           </div>
         ) : images.length === 0 ? (
           <div className="text-center py-20 bg-white rounded-xl">
-            <Camera className="w-20 h-20 mx-auto text-[#86b2a5] mb-4" />
-            <h3 className="text-2xl font-semibold text-[#044536] mb-2">No photos yet</h3>
+            <CameraCapture userId={userId} onUploadSuccess={handleUploadSuccess} />
+            <h3 className="text-2xl font-semibold text-[#044536] mt-4 mb-2">No photos yet</h3>
             <p className="text-[#4e7c6f]">
-              {viewAll ? "No photos have been uploaded yet!" : "Upload your first photo!"}
+              {viewAll ? "No photos have been uploaded yet!" : "Click the camera button to take your first photo!"}
             </p>
           </div>
         ) : (
@@ -1102,7 +1110,6 @@ export default function Home() {
                   >
                     View Full
                   </button>
-                  {/* Admin can delete any image, users can only delete their own */}
                   {(userRole === 'admin' || image.user?.id === userId) && (
                     <button
                       onClick={() => setShowDeleteConfirm(image.id)}
@@ -1134,71 +1141,23 @@ export default function Home() {
 
       {/* Floating Buttons */}
       <div className="fixed bottom-8 right-8 flex flex-col gap-4">
-        {/* Camera Button - Visible to ALL users */}
-        <button
-          onClick={() => setShowCameraUpload(true)}
-          className="w-14 h-14 bg-gradient-to-r from-[#1f8d6f] to-[#0f6d54] rounded-full shadow-lg flex items-center justify-center hover:scale-110 transition-transform"
-        >
-          <Camera className="w-6 h-6 text-white" />
-        </button>
+        {/* Camera Button - ALL users */}
+        <CameraCapture userId={userId} onUploadSuccess={handleUploadSuccess} />
 
-        {/* Users Button - Visible to ALL users */}
+        {/* Users Button - ALL users */}
         <Link
           href="/users"
           className="w-14 h-14 bg-gradient-to-r from-[#1f8d6f] to-[#0f6d54] rounded-full shadow-lg flex items-center justify-center hover:scale-110 transition-transform"
+          title="View All Users"
         >
           <Users className="w-6 h-6 text-white" />
         </Link>
 
-        {/* Admin Plus Button - Only for Admin (upload from gallery) */}
+        {/* Admin Gallery Upload - ONLY Admin */}
         {userRole === 'admin' && (
-          <ImageUpload 
-            userId={userId} 
-            userRole={userRole}
-            onUploadSuccess={handleUploadSuccess} 
-          />
+          <AdminGalleryUpload userId={userId} onUploadSuccess={handleUploadSuccess} />
         )}
       </div>
-
-      {/* Camera Upload Modal for All Users */}
-      {showCameraUpload && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-2xl w-full p-4 relative">
-            <button
-              onClick={() => setShowCameraUpload(false)}
-              className="absolute -top-12 right-0 text-white hover:text-gray-300 transition-colors"
-            >
-              <X size={32} />
-            </button>
-
-            <div className="relative">
-              <video
-                id="camera-video"
-                autoPlay
-                playsInline
-                className="w-full rounded-lg"
-                style={{ transform: 'scaleX(-1)' }}
-              />
-              <canvas id="camera-canvas" className="hidden" />
-              
-              <div className="flex justify-center gap-4 mt-4">
-                <button
-                  id="capture-photo"
-                  className="px-6 py-3 bg-gradient-to-r from-[#1f8d6f] to-[#0f6d54] text-white rounded-lg font-semibold hover:shadow-lg transition-all"
-                >
-                  Capture Photo
-                </button>
-                <button
-                  onClick={() => setShowCameraUpload(false)}
-                  className="px-6 py-3 bg-gray-500 text-white rounded-lg font-semibold hover:bg-gray-600 transition-all"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
