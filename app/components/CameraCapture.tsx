@@ -31,21 +31,6 @@ export default function CameraCapture({ userId, onUploadSuccess }: CameraCapture
     }
   }, []);
 
-  const checkVideoReady = useCallback(() => {
-    const video = videoRef.current;
-    if (!video) return false;
-    
-    // Video must be playing AND have dimensions
-    const ready = video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0;
-    
-    if (ready && !isCameraReady) {
-      console.log('Camera ready:', video.videoWidth, 'x', video.videoHeight);
-      setIsCameraReady(true);
-    }
-    
-    return ready;
-  }, [isCameraReady]);
-
   const startCamera = async () => {
     setError('');
     setIsCameraReady(false);
@@ -54,38 +39,45 @@ export default function CameraCapture({ userId, onUploadSuccess }: CameraCapture
     try {
       const constraints = {
         video: {
-          facingMode: { ideal: facingMode },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
+          facingMode: { exact: facingMode },
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
         },
         audio: false
       };
       
-      console.log('Opening camera...');
+      console.log('Requesting camera...');
       const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
       photoStreamRef.current = mediaStream;
       
       if (videoRef.current) {
         const video = videoRef.current;
         video.srcObject = mediaStream;
+        video.setAttribute('playsinline', 'true'); // Important for iOS
         
-        // Explicit play is REQUIRED on mobile Safari/Chrome
-        await video.play();
+        // Wait for video to be ready
+        video.onloadedmetadata = () => {
+          console.log('Video metadata loaded');
+          video.play().then(() => {
+            console.log('Video playing');
+            // Give it a moment to get the first frame
+            setTimeout(() => {
+              if (video.videoWidth > 0 && video.videoHeight > 0) {
+                console.log('Camera ready:', video.videoWidth, 'x', video.videoHeight);
+                setIsCameraReady(true);
+              } else {
+                setError('Camera failed to initialize');
+              }
+            }, 500);
+          }).catch((err) => {
+            console.error('Video play failed:', err);
+            setError('Failed to start camera. Please check permissions.');
+          });
+        };
         
-        // Poll for readiness since onloadedmetadata is unreliable with streams
-        const checkInterval = setInterval(() => {
-          if (checkVideoReady()) {
-            clearInterval(checkInterval);
-          }
-        }, 100);
-        
-        // Fallback timeout
-        setTimeout(() => {
-          clearInterval(checkInterval);
-          if (!isCameraReady) {
-            setError('Camera is taking too long to initialize. Please try again.');
-          }
-        }, 5000);
+        video.onerror = () => {
+          setError('Video error occurred');
+        };
       }
       
       setShowCamera(true);
@@ -94,8 +86,9 @@ export default function CameraCapture({ userId, onUploadSuccess }: CameraCapture
     } catch (err: any) {
       console.error('Camera access error:', err);
       
-      // Fallback: try any camera without facingMode constraint
+      // Try fallback without facingMode constraint
       try {
+        console.log('Trying fallback camera...');
         const fallbackStream = await navigator.mediaDevices.getUserMedia({ 
           video: true,
           audio: false 
@@ -105,20 +98,18 @@ export default function CameraCapture({ userId, onUploadSuccess }: CameraCapture
         if (videoRef.current) {
           const video = videoRef.current;
           video.srcObject = fallbackStream;
+          video.setAttribute('playsinline', 'true');
           await video.play();
-          
-          const checkInterval = setInterval(() => {
-            if (checkVideoReady()) {
-              clearInterval(checkInterval);
+          setTimeout(() => {
+            if (video.videoWidth > 0 && video.videoHeight > 0) {
+              setIsCameraReady(true);
             }
-          }, 100);
-          
-          setTimeout(() => clearInterval(checkInterval), 5000);
+          }, 500);
         }
         setShowCamera(true);
       } catch (fallbackErr) {
-        console.error('Fallback also failed:', fallbackErr);
-        setError('Unable to access camera. Please check permissions and ensure you are on HTTPS or localhost.');
+        console.error('Fallback failed:', fallbackErr);
+        setError('Unable to access camera. Please check permissions and ensure you are on HTTPS.');
       }
     }
   };
@@ -129,60 +120,50 @@ export default function CameraCapture({ userId, onUploadSuccess }: CameraCapture
     setIsCameraReady(false);
     stopStream();
     
-    try {
-      const constraints = {
-        video: {
-          facingMode: { ideal: newFacingMode },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
-        },
-        audio: false
-      };
-      
-      const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
-      photoStreamRef.current = mediaStream;
-      
-      if (videoRef.current) {
-        const video = videoRef.current;
-        video.srcObject = mediaStream;
-        await video.play();
-        
-        const checkInterval = setInterval(() => {
-          if (checkVideoReady()) {
-            clearInterval(checkInterval);
-          }
-        }, 100);
-        
-        setTimeout(() => clearInterval(checkInterval), 5000);
-      }
-    } catch (err) {
-      console.error('Error switching camera:', err);
-      // Fallback
+    setTimeout(async () => {
       try {
-        const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-        photoStreamRef.current = fallbackStream;
+        const constraints = {
+          video: {
+            facingMode: { exact: newFacingMode },
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
+          audio: false
+        };
+        
+        const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+        photoStreamRef.current = mediaStream;
+        
         if (videoRef.current) {
           const video = videoRef.current;
-          video.srcObject = fallbackStream;
-          await video.play();
+          video.srcObject = mediaStream;
+          video.setAttribute('playsinline', 'true');
           
-          const checkInterval = setInterval(() => {
-            if (checkVideoReady()) {
-              clearInterval(checkInterval);
-            }
-          }, 100);
-          
-          setTimeout(() => clearInterval(checkInterval), 5000);
+          video.onloadedmetadata = () => {
+            video.play().then(() => {
+              setTimeout(() => {
+                if (video.videoWidth > 0 && video.videoHeight > 0) {
+                  setIsCameraReady(true);
+                }
+              }, 500);
+            }).catch(console.error);
+          };
         }
-      } catch (fallbackErr) {
+      } catch (err) {
+        console.error('Error switching camera:', err);
         setError('Unable to switch camera');
+        // Try to restart with current facing mode
+        startCamera();
       }
-    }
+    }, 100);
   };
 
   const takePhoto = () => {
+    console.log('takePhoto called, isCameraReady:', isCameraReady);
+    
     if (!videoRef.current || !canvasRef.current) {
-      setError('Camera not ready');
+      setError('Camera components not ready');
+      console.log('Missing refs:', { video: !!videoRef.current, canvas: !!canvasRef.current });
       return;
     }
     
@@ -194,57 +175,62 @@ export default function CameraCapture({ userId, onUploadSuccess }: CameraCapture
     const video = videoRef.current;
     const canvas = canvasRef.current;
     
-    // Double-check dimensions right before capture
+    // Get video dimensions
     const photoWidth = video.videoWidth;
     const photoHeight = video.videoHeight;
     
+    console.log('Video dimensions:', photoWidth, photoHeight);
+    
     if (photoWidth === 0 || photoHeight === 0) {
-      setError('Camera still initializing. Please wait a moment and try again.');
-      setIsCameraReady(false);
-      // Retry readiness check
-      setTimeout(() => checkVideoReady(), 500);
+      setError('Camera not ready. Please wait a moment.');
       return;
     }
     
+    // Set canvas to video dimensions
     canvas.width = photoWidth;
     canvas.height = photoHeight;
     
     const context = canvas.getContext('2d');
     if (!context) {
+      setError('Failed to get canvas context');
+      return;
+    }
+    
+    // Clear canvas
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Apply mirror effect for front camera
+    if (facingMode === 'user') {
+      context.save();
+      context.scale(-1, 1);
+      context.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
+      context.restore();
+    } else {
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    }
+    
+    // Convert to data URL
+    const photoData = canvas.toDataURL('image/jpeg', 0.9);
+    
+    if (!photoData || photoData === 'data:,') {
       setError('Failed to capture photo');
       return;
     }
-
-    // Apply mirror effect for front camera
-    if (facingMode === 'user') {
-      context.translate(canvas.width, 0);
-      context.scale(-1, 1);
-    }
     
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    
-    // Reset transform
-    if (facingMode === 'user') {
-      context.setTransform(1, 0, 0, 1, 0, 0);
-    }
-    
-    // Camera flash effect
-    const flashDiv = document.createElement('div');
-    flashDiv.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:white;opacity:0;pointer-events:none;z-index:9999;transition:opacity 0.1s ease-out;';
-    document.body.appendChild(flashDiv);
-    
-    requestAnimationFrame(() => {
-      flashDiv.style.opacity = '0.8';
-      setTimeout(() => {
-        flashDiv.style.opacity = '0';
-        setTimeout(() => flashDiv.remove(), 200);
-      }, 50);
-    });
-    
-    const photoData = canvas.toDataURL('image/jpeg', 0.9);
+    console.log('Photo captured successfully');
     setCapturedImage(photoData);
     setShowPreview(true);
-    console.log('Photo captured:', photoWidth, 'x', photoHeight);
+    
+    // Flash effect
+    const flashDiv = document.createElement('div');
+    flashDiv.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:white;opacity:0;pointer-events:none;z-index:9999;';
+    document.body.appendChild(flashDiv);
+    flashDiv.style.transition = 'opacity 0.1s';
+    flashDiv.style.opacity = '0.8';
+    setTimeout(() => {
+      flashDiv.style.opacity = '0';
+      setTimeout(() => flashDiv.remove(), 200);
+    }, 100);
   };
 
   const retakePhoto = () => {
@@ -260,13 +246,15 @@ export default function CameraCapture({ userId, onUploadSuccess }: CameraCapture
     setError('');
     
     try {
-      const blob = await (await fetch(capturedImage)).blob();
+      // Convert data URL to blob
+      const blob = await fetch(capturedImage).then(res => res.blob());
       const file = new File([blob], `photo_${Date.now()}.jpg`, { type: 'image/jpeg' });
       
       const formData = new FormData();
       formData.append('file', file);
       formData.append('userId', userId);
       
+      console.log('Uploading photo...');
       const response = await fetch('/api/images/upload', {
         method: 'POST',
         body: formData,
@@ -280,6 +268,7 @@ export default function CameraCapture({ userId, onUploadSuccess }: CameraCapture
       onUploadSuccess();
       closeCamera();
     } catch (err: any) {
+      console.error('Upload error:', err);
       setError(err.message || 'Upload failed');
     } finally {
       setUploading(false);
@@ -330,13 +319,13 @@ export default function CameraCapture({ userId, onUploadSuccess }: CameraCapture
             <div className="flex items-center gap-2">
               <div className={`w-2 h-2 ${isCameraReady ? 'bg-green-500' : 'bg-yellow-500'} rounded-full animate-pulse`} />
               <span className="text-white text-xs">
-                {isCameraReady ? 'READY' : '...'}
+                {isCameraReady ? 'READY' : 'Initializing...'}
               </span>
             </div>
           </div>
 
           {/* Camera/Preview View */}
-          <div className="flex-1 flex items-center justify-center relative bg-black overflow-hidden">
+          <div className="flex-1 flex items-center justify-center relative bg-black">
             {!showPreview ? (
               <>
                 <video
@@ -345,7 +334,9 @@ export default function CameraCapture({ userId, onUploadSuccess }: CameraCapture
                   playsInline
                   muted
                   className="w-full h-full object-cover"
+                  style={{ transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' }}
                 />
+                <canvas ref={canvasRef} className="hidden" />
                 
                 {/* Error Overlay */}
                 {error && (
@@ -358,6 +349,12 @@ export default function CameraCapture({ userId, onUploadSuccess }: CameraCapture
                         className="px-6 py-2 bg-[#1f8d6f] text-white rounded-lg hover:bg-[#1a7a60] transition-colors"
                       >
                         Try Again
+                      </button>
+                      <button
+                        onClick={closeCamera}
+                        className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors ml-2"
+                      >
+                        Cancel
                       </button>
                     </div>
                   </div>
